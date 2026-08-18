@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Panel de Comisiones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1B2F; --paper:#FFFFFF; --paper-dim:#FFF1D6; --paper-line:#FFC93D;
+    --stamp-red:#FF3D7A; --mint:#03C988; --mint-dim:#D2FBEB; --gold:#FFC93D; --gray:#6E6B87;
+    --amber:#FF7A3D; --amber-dim:#FFE4CF; --purple:#7B3DFF; --cyan:#2FD1E8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper-dim);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,61,122,0.14) 1px, transparent 0),
+      radial-gradient(circle at 9px 9px, rgba(47,209,232,0.14) 1px, transparent 0);
+    background-size:18px 18px, 18px 18px;
+    color:var(--ink);font-family:'Inter',sans-serif;min-height:100vh;padding:18px 12px 60px;}
+  .wrap{max-width:460px;margin:0 auto;}
+  .brand{text-align:center;margin-bottom:12px;}
+  .brand .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--gray);text-transform:uppercase;}
+  .brand h1{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:.03em;margin:2px 0 0;
+    background:linear-gradient(120deg,var(--purple),var(--stamp-red) 55%,var(--gold));
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .period-tag{display:inline-block;margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gray);border:1px solid var(--paper-line);padding:2px 8px;border-radius:10px;}
+  .tier-chip{display:inline-block;margin-top:4px;margin-left:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mint);border:1px solid var(--mint);padding:2px 8px;border-radius:10px;}
+
+  .calendar-bar{
+    background:var(--ink);color:var(--paper);border-radius:10px;padding:10px 14px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;text-align:center;margin-bottom:14px;
+  }
+  .calendar-bar b{color:var(--gold);}
+
+  .ticket{background:var(--paper);border:2px solid var(--paper-line);border-radius:12px 12px 0 0;padding:20px 18px 24px;margin-bottom:4px;}
+  .ticket-tear{height:12px;margin:0 0 14px;background:radial-gradient(circle at 8px 0, transparent 7px, var(--paper-dim) 7.5px) top/16px 14px repeat-x;}
+  .section-label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);margin:0 0 10px;display:flex;justify-content:space-between;}
+
+  .accel-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .accel-row .pct{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:30px;color:var(--mint);}
+  .accel-row .pk{font-family:'IBM Plex Mono',monospace;color:var(--gray);font-size:13px;text-align:right;}
+  .bar-track{height:14px;border-radius:7px;background:var(--paper-dim);border:1px solid var(--paper-line);overflow:hidden;}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--stamp-red),var(--gold));border-radius:7px;transition:width .5s ease;}
+  .sub-msg{font-family:'IBM Plex Mono',monospace;font-size:12.5px;margin-top:9px;color:var(--ink);}
+  .sub-msg b{color:var(--mint);}
+  .pace-msg{font-family:'IBM Plex Mono',monospace;font-size:11.5px;margin-top:4px;color:var(--gray);}
+  .pace-msg b{color:var(--amber);}
+
+  .stamp-wrap{display:flex;justify-content:center;margin:10px 0 2px;}
+  .stamp{background:linear-gradient(135deg,var(--stamp-red),var(--gold));color:#fff;border:none;font-family:'Bebas Neue',sans-serif;letter-spacing:.04em;font-size:14px;padding:9px 16px;border-radius:8px;transform:rotate(-2.5deg);text-align:center;line-height:1.25;box-shadow:0 4px 14px rgba(255,61,122,0.35);}
+
+  .metric-group{margin-bottom:16px;}
+  .metric-group:last-child{margin-bottom:0;}
+  .metric-group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .metric-group-head .gname{font-weight:700;font-size:14px;}
+  .metric-badge{font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:2px 8px;border-radius:10px;}
+  .badge-ok{background:var(--mint-dim);color:var(--mint);}
+  .badge-pending{background:var(--amber-dim);color:var(--amber);}
+  .metric-sub{padding:6px 0 6px 10px;border-left:2px solid var(--paper-line);margin-bottom:6px;}
+  .metric-sub.done{border-left-color:var(--mint);}
+  .metric-sub-top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;}
+  .metric-sub-top .nm{color:var(--ink);}
+  .metric-sub-top .nums{font-family:'IBM Plex Mono',monospace;color:var(--gray);font-size:11px;}
+  .metric-bar-track{height:7px;border-radius:5px;background:var(--paper-dim);border:1px solid var(--paper-line);overflow:hidden;}
+  .metric-bar-fill{height:100%;background:var(--amber);border-radius:5px;}
+  .metric-bar-fill.ok{background:var(--mint);}
+  .metric-pace{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--gray);margin-top:3px;}
+  .metric-pace b{color:var(--amber);}
+  .pec-note{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--gray);margin-top:10px;padding-top:10px;border-top:1px dashed var(--paper-line);}
+
+  .accel2-row{display:flex;gap:10px;margin-top:4px;}
+  .lvl-box{flex:1;text-align:center;padding:10px 4px;border-radius:8px;border:1px solid var(--paper-line);background:var(--paper-dim);font-family:'IBM Plex Mono',monospace;}
+  .lvl-box.active{background:linear-gradient(135deg,var(--purple),var(--stamp-red));color:#fff;border-color:transparent;}
+  .lvl-box .n{font-weight:700;font-size:15px;}
+  .lvl-box .p{font-size:10px;opacity:.85;}
+
+  .mic-row{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+  .mic-btn{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));color:#fff;border:none;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:transform .15s ease, background .15s ease;}
+  .mic-btn:active{transform:scale(.94);}
+  .mic-btn.recording{background:var(--stamp-red);animation:pulse 1.2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,61,122,.45);}70%{box-shadow:0 0 0 14px rgba(255,61,122,0);}100%{box-shadow:0 0 0 0 rgba(255,61,122,0);}}
+  .mic-hint{font-size:12.5px;color:var(--gray);}
+  .mic-hint b{color:var(--ink);}
+
+  select, input[type=number], input[type=text], input[type=date]{font-family:'IBM Plex Mono',monospace;font-size:15px;padding:10px 10px;border:1px solid var(--paper-line);border-radius:8px;background:#fff;width:100%;}
+  .manual-grid{display:grid;grid-template-columns:1fr 60px 1fr;gap:8px;margin-top:6px;}
+  .btn{font-family:'Inter',sans-serif;font-weight:700;font-size:14px;background:linear-gradient(135deg,var(--purple),var(--stamp-red));color:#fff;border:none;border-radius:8px;padding:12px 16px;cursor:pointer;margin-top:10px;width:100%;box-shadow:0 4px 14px rgba(123,61,255,0.25);}
+  .btn.secondary{background:transparent;color:var(--ink);border:1px solid var(--paper-line);}
+  .btn:disabled{opacity:.5;}
+
+  .confirm{background:var(--mint-dim);border:1px solid var(--mint);border-radius:10px;padding:14px;margin-top:14px;}
+  .confirm .heard{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--gray);margin-bottom:8px;}
+  .confirm-actions{display:flex;gap:8px;margin-top:10px;}
+  .confirm-actions .btn{margin-top:0;}
+
+  .log-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed var(--paper-line);font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+  .log-item:last-child{border-bottom:none;}
+  .log-item .meta{color:var(--gray);font-size:10.5px;}
+  .log-item .grp{display:inline-block;font-size:9.5px;padding:1px 6px;border-radius:8px;background:var(--paper-dim);color:var(--gray);margin-left:6px;}
+  .log-item .del{background:none;border:none;color:var(--gray);cursor:pointer;font-size:16px;padding:0 4px;}
+  .empty{font-size:13px;color:var(--gray);padding:6px 0;}
+
+  .overlay{position:fixed;inset:0;background:rgba(22,36,28,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10;}
+  .modal{background:var(--paper);border-radius:12px;padding:20px;max-width:440px;width:100%;max-height:88vh;overflow-y:auto;}
+  .modal h2{font-family:'Bebas Neue',sans-serif;font-size:24px;margin:0 0 4px;}
+  .modal p{font-size:12.5px;color:var(--gray);margin:0 0 14px;}
+  .modal h3{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:18px 0 8px;border-top:1px dashed var(--paper-line);padding-top:14px;}
+  .cfg-grid{display:grid;grid-template-columns:1.4fr .8fr;gap:8px;align-items:center;margin-bottom:7px;}
+  .cfg-grid label{font-size:12.5px;}
+  .tier-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px;align-items:center;}
+  .tier-row span{font-size:11px;color:var(--gray);}
+  .piso-head{display:grid;grid-template-columns:1.3fr .7fr .7fr;gap:6px;font-size:10.5px;color:var(--gray);margin-bottom:4px;}
+  .piso-row{display:grid;grid-template-columns:1.3fr .7fr .7fr;gap:6px;margin-bottom:6px;align-items:center;}
+  .piso-row label{font-size:12px;}
+  .day-chip{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border-radius:8px;border:1px solid var(--paper-line);background:#fff;cursor:pointer;user-select:none;}
+  .day-chip.active{background:linear-gradient(135deg,var(--purple),var(--stamp-red));color:#fff;border-color:transparent;}
+  .report-text{white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.6;background:var(--paper-dim);border:1px solid var(--paper-line);border-radius:8px;padding:14px;}
+
+  .footer-actions{display:flex;justify-content:center;gap:14px;margin-top:16px;flex-wrap:wrap;}
+  .link-btn{background:none;border:none;color:var(--gray);font-size:12px;text-decoration:underline;cursor:pointer;}
+  .status{text-align:center;font-size:12px;color:var(--gray);margin-top:6px;min-height:16px;}
+
+  .login-wrap{max-width:340px;margin:60px auto;text-align:center;}
+  .login-card{background:var(--paper);border:2px solid var(--paper-line);border-radius:14px;padding:26px 22px;}
+  .login-card input{margin-bottom:10px;}
+  .login-error{color:var(--stamp-red);font-size:12.5px;min-height:16px;margin-bottom:6px;}
+  .login-toggle{font-size:12.5px;color:var(--gray);text-decoration:underline;cursor:pointer;background:none;border:none;margin-top:8px;}
+  .user-bar{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--gray);margin-bottom:10px;font-family:'IBM Plex Mono',monospace;}
+  .user-bar button{background:none;border:none;color:var(--gray);text-decoration:underline;cursor:pointer;font-size:11.5px;}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <h1 style="font-family:'Bebas Neue',sans-serif;font-size:30px;margin:0 0 4px;">Comisiones</h1>
+    <p style="font-size:12.5px;color:var(--gray);margin:0 0 16px;">Iniciá sesión con tu mail para ver tus datos.</p>
+    <div class="login-error" id="loginError"></div>
+    <input type="email" id="loginEmail" placeholder="Tu email">
+    <input type="password" id="loginPass" placeholder="Contraseña">
+    <button class="btn" id="loginBtn">Iniciar sesión</button>
+    <button class="login-toggle" id="toggleModeBtn">¿No tenés cuenta? Registrate</button>
+  </div>
+</div>
+
+<div class="wrap" id="appWrap" style="display:none;">
+  <div class="user-bar">
+    <span id="userEmailLabel"></span>
+    <button id="logoutBtn">Cerrar sesión</button>
+  </div>
+  <div class="brand">
+    <div class="eyebrow">Panel del vendedor</div>
+    <h1>Comisiones</h1>
+    <div><span class="period-tag" id="periodTag">Período</span><span class="tier-chip" id="tierTag">PART</span></div>
+  </div>
+
+  <div class="calendar-bar" id="calendarBar">Cargando calendario...</div>
+
+  <div class="ticket">
+    <div class="section-label"><span>Acelerador por Packs</span></div>
+    <div class="accel-row">
+      <span class="pct" id="accel1Pct">0,00%</span>
+      <span class="pk" id="accel1Packs">0 packs</span>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="accel1Bar" style="width:0%"></div></div>
+    <div class="sub-msg" id="accel1Msg">Cargando...</div>
+    <div class="pace-msg" id="accel1Pace"></div>
+    <div class="stamp-wrap"><div class="stamp" id="motivational">¡Vamos!</div></div>
+  </div>
+  <div class="ticket-tear"></div>
+
+  <div class="ticket" style="margin-top:14px;">
+    <div class="section-label"><span>Métricas (pisos)</span><span id="metricSummary">0/3</span></div>
+    <div id="metricList"></div>
+    <div class="pec-note" id="pecNote"></div>
+  </div>
+  <div class="ticket-tear"></div>
+
+  <div class="ticket" style="margin-top:14px;">
+    <div class="section-label"><span>Acelerador por Métricas</span></div>
+    <div class="accel2-row" id="accel2Row"></div>
+  </div>
+  <div class="ticket-tear"></div>
+
+  <div class="ticket" style="margin-top:14px;">
+    <div class="section-label"><span>Registrar venta</span></div>
+    <div class="mic-row">
+      <button class="mic-btn" id="micBtn" aria-label="Grabar venta por voz">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <div class="mic-hint" id="micHint">Toca y decí, por ejemplo: <b>"vendí un ACC nivel 2"</b></div>
+    </div>
+
+    <div id="confirmPanel" style="display:none;" class="confirm">
+      <div class="heard" id="heardText"></div>
+      <div class="manual-grid">
+        <select id="confirmCat"></select>
+        <input type="number" id="confirmQty" min="1" step="1" value="1">
+        <input type="date" id="confirmDate">
+      </div>
+      <div class="confirm-actions">
+        <button class="btn" id="confirmSave">Guardar</button>
+        <button class="btn secondary" id="confirmCancel">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="manual-grid" style="margin-top:14px;">
+      <select id="manualCat"></select>
+      <input type="number" id="manualQty" min="1" step="1" value="1">
+      <input type="date" id="manualDate">
+    </div>
+    <button class="btn" id="manualAdd">Agregar venta</button>
+  </div>
+  <div class="ticket-tear"></div>
+
+  <div class="ticket" style="margin-top:14px;">
+    <div class="section-label"><span>Historial reciente</span></div>
+    <div id="logList"><div class="empty">Sin ventas registradas todavía.</div></div>
+  </div>
+
+  <div class="footer-actions">
+    <button class="link-btn" id="reportBtn">Ver informe</button>
+    <button class="link-btn" id="editConfigBtn">Editar parámetros</button>
+    <button class="link-btn" id="resetBtn">Reiniciar período</button>
+  </div>
+  <div class="status" id="statusMsg"></div>
+</div>
+
+<div class="overlay" id="setupOverlay" style="display:none;">
+  <div class="modal">
+    <h2 id="modalTitle">Parámetros del período</h2>
+    <p>Los puntos por categoría los cargás y editás vos cuando quieras — esta app no te los pide ni los comparte.</p>
+
+    <div class="cfg-grid"><label>Período (ej: 202608)</label><input type="text" id="cfgPeriod"></div>
+    <div class="cfg-grid"><label>Tu piso</label>
+      <select id="cfgTier"><option value="PART">PART</option><option value="FULL">FULL</option></select>
+    </div>
+
+    <h3>Calendario y ritmo</h3>
+    <div class="cfg-grid"><label>Fin del período</label><input type="date" id="cfgFinPeriodo"></div>
+    <label style="font-size:12.5px;display:block;margin-bottom:6px;">Tus francos fijos (se repiten cada semana)</label>
+    <div id="francosChecks" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+
+    <h3>Pisos / objetivos por métrica <span id="pisoTierLabel"></span></h3>
+    <div id="pisoRows"></div>
+    <div class="cfg-grid"><label>Uso PEC (informativo, %)</label><input type="number" id="pecInput"></div>
+
+    <h3>Acelerador por Packs (umbral desde)</h3>
+    <div id="tierRows"></div>
+
+    <h3>Acelerador por Métricas</h3>
+    <div class="tier-row"><span>0 métricas</span><input type="number" step="0.1" id="m0"><span>%</span></div>
+    <div class="tier-row"><span>1 métrica</span><input type="number" step="0.1" id="m1"><span>%</span></div>
+    <div class="tier-row"><span>2 métricas</span><input type="number" step="0.1" id="m2"><span>%</span></div>
+    <div class="tier-row"><span>3 métricas</span><input type="number" step="0.1" id="m3"><span>%</span></div>
+
+    <h3>Puntos por categoría</h3>
+    <p style="margin:0 0 8px;">Todos los puntos se suman entre sí sin importar la categoría. Cada <span id="unitsPerPackLabel">10</span> puntos acumulados forman 1 pack.</p>
+    <div class="cfg-grid"><label>Puntos para formar 1 pack</label><input type="number" step="1" id="cfgUnitsPerPack"></div>
+    <div id="valueRows"></div>
+
+    <button class="btn" id="cfgSave">Guardar</button>
+    <button class="btn secondary" id="cfgCancel">Cancelar</button>
+  </div>
+</div>
+
+<div class="overlay" id="reportOverlay" style="display:none;">
+  <div class="modal">
+    <h2>Informe</h2>
+    <div class="report-text" id="reportText"></div>
+    <button class="btn secondary" id="reportClose">Cerrar</button>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+const CATEGORIES = [
+  {id:'acc1', label:'ACC nivel 1', group:'accesorios', kw:[/acc\w*\s*nivel\s*1\b/, /accesorio\w*\s*nivel\s*1\b/]},
+  {id:'acc2', label:'ACC nivel 2', group:'accesorios', kw:[/acc\w*\s*nivel\s*2\b/, /accesorio\w*\s*nivel\s*2\b/]},
+  {id:'acc3', label:'ACC nivel 3', group:'accesorios', kw:[/acc\w*\s*nivel\s*3\b/, /accesorio\w*\s*nivel\s*3\b/]},
+  {id:'acc4', label:'ACC nivel 4', group:'accesorios', kw:[/acc\w*\s*nivel\s*4\b/, /accesorio\w*\s*nivel\s*4\b/]},
+  {id:'equipos1', label:'Equipos 1', group:'cater', kw:[/equipos?\s*1\b/]},
+  {id:'equipos2', label:'Equipos 2', group:'cater', kw:[/equipos?\s*2\b/]},
+  {id:'migracion', label:'Migración a Pospago', group:'servicios', kw:[/migraci[oó]n/]},
+  {id:'portabilidad', label:'Portabilidad / Portas Pospaga', group:'servicios', kw:[/portabilidad/, /\bportas?\b/]},
+  {id:'prodesp', label:'Producto Especial', group:'servicios', kw:[/producto\s*especial/]},
+  {id:'telefonia', label:'Activación Fija / Telefonía Fija', group:'servicios', kw:[/telefon[ií]a/, /\bfija\b/]},
+  {id:'canjea', label:'Canje', group:'servicios', kw:[/canje/]},
+  {id:'seguro', label:'Seguro', group:'servicios', kw:[/seguro/]},
+  {id:'movil_con', label:'Móviles POS Con Equipo', group:'servicios', kw:[/m[oó]vil\w*.*con\s*equipo/, /con\s*equipo/]},
+  {id:'movil_sin', label:'Móviles POS Sin Equipo', group:'servicios', kw:[/m[oó]vil\w*.*sin\s*equipo/, /sin\s*equipo/]},
+];
+
+const GROUP_LABEL = {servicios:'Servicios', accesorios:'Accesorios', cater:'CATER'};
+
+const METRIC_ITEMS = [
+  {key:'fija', label:'Activaciones Fija', group:'servicios', ids:['telefonia']},
+  {key:'portas', label:'Portas Pospaga', group:'servicios', ids:['portabilidad']},
+  {key:'migracion', label:'Migración a Pospago', group:'servicios', ids:['migracion']},
+  {key:'seguro', label:'Seguro', group:'servicios', ids:['seguro']},
+  {key:'canjea', label:'Canje', group:'servicios', ids:['canjea']},
+  {key:'accesorios', label:'Accesorios', group:'accesorios', ids:['acc1','acc2','acc3','acc4']},
+  {key:'cater', label:'CATER (Equipos 1 + Equipos 2)', group:'cater', ids:['equipos1','equipos2']},
+];
+
+function lastDayOfPeriod(periodStr){
+  const y = parseInt((periodStr||'').slice(0,4),10);
+  const m = parseInt((periodStr||'').slice(4,6),10);
+  if (!y || !m) return new Date();
+  return new Date(y, m, 0); // día 0 del mes siguiente = último día del mes actual
+}
+function firstDayOfPeriod(periodStr){
+  const y = parseInt((periodStr||'').slice(0,4),10);
+  const m = parseInt((periodStr||'').slice(4,6),10);
+  if (!y || !m) return new Date();
+  return new Date(y, m-1, 1);
+}
+function toISODate(d){ return d.toISOString().slice(0,10); }
+
+const DEFAULT_CONFIG = {
+  period: '202608',
+  fte: 0.75,
+  tier: 'PART',
+  finPeriodo: null,          // se completa con el último día del período si no se define
+  diasFrancos: [0,3],        // 0=domingo,1=lunes,2=martes,3=miércoles,4=jueves,5=viernes,6=sábado
+  unitsPerPack: 10,
+  pisos: {
+    PART: { fija:1, portas:7, accesorios:125, cater:35, canjea:6, migracion:6, seguro:5, usoPec:100 },
+    FULL: { fija:1, portas:9, accesorios:130, cater:41, canjea:6, migracion:6, seguro:6, usoPec:100 }
+  },
+  packTiers: [ {min:1,pct:0}, {min:22,pct:7.5}, {min:35,pct:15}, {min:47,pct:25} ],
+  metricTiers: {0:100, 1:105, 2:110, 3:120},
+  values: {
+    acc1:0.50, acc2:1.00, acc3:3.00, acc4:4.50,
+    equipos1:2.50, equipos2:5.00, liquidacion:0.25, migracion:0.25,
+    portabilidad:3.50, prodesp:6.00,
+    telefonia:3.50, canjea:0, seguro:0, movil_con:3.50, movil_sin:3.50
+  }
+};
+
+let config = null;
+let sales = [];
+
+const motivational = {
+  start:["Recién arrancamos, cada venta suma.","El primer pack ya es un paso adelante.","Hoy es un buen día para empezar fuerte."],
+  mid:["Vas tomando ritmo, seguí así.","La constancia es lo que llena la meta.","Cada venta te acerca un poco más."],
+  close:["¡Ya se siente cerca el próximo nivel!","Un empujón más y subís de acelerador.","Estás en la recta final, no aflojés."],
+  almost:["¡Está a la vuelta de la esquina!","Un par de ventas más y listo.","Casi, casi... no pares ahora."],
+  done:["¡Tope de acelerador alcanzado! Gran trabajo.","¡Lo lograste! Máximo nivel.","Objetivo alcanzado, seguí sumando packs."]
+};
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function motivationalFor(pct){
+  if (pct >= 100) return pick(motivational.done);
+  if (pct >= 85) return pick(motivational.almost);
+  if (pct >= 55) return pick(motivational.close);
+  if (pct >= 20) return pick(motivational.mid);
+  return pick(motivational.start);
+}
+
+function fmtNum(n, dec){ return n.toLocaleString('es-AR', {minimumFractionDigits:dec||0, maximumFractionDigits:dec||2}); }
+function setStatus(msg){ $('statusMsg').textContent = msg; }
+
+// ---------- Firebase ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyAdA-N17yHEjln-EEJ_sVog0cDp_FPimZ4",
+  authDomain: "comisiones-8d634.firebaseapp.com",
+  projectId: "comisiones-8d634",
+  storageBucket: "comisiones-8d634.firebasestorage.app",
+  messagingSenderId: "1003808642979",
+  appId: "1:1003808642979:web:f44ac0b3c5ad6d1da3ec16",
+  measurementId: "G-YXJ0SDH182"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+let currentUser = null;
+
+let registerMode = false;
+$('toggleModeBtn').addEventListener('click', ()=>{
+  registerMode = !registerMode;
+  $('loginBtn').textContent = registerMode ? 'Crear cuenta' : 'Iniciar sesión';
+  $('toggleModeBtn').textContent = registerMode ? '¿Ya tenés cuenta? Iniciá sesión' : '¿No tenés cuenta? Registrate';
+  $('loginError').textContent = '';
+});
+$('loginBtn').addEventListener('click', async ()=>{
+  const email = $('loginEmail').value.trim();
+  const pass = $('loginPass').value;
+  $('loginError').textContent = '';
+  if (!email || !pass){ $('loginError').textContent = 'Completá email y contraseña.'; return; }
+  try{
+    if (registerMode){ await auth.createUserWithEmailAndPassword(email, pass); }
+    else { await auth.signInWithEmailAndPassword(email, pass); }
+  }catch(e){ $('loginError').textContent = e.message; }
+});
+$('logoutBtn').addEventListener('click', ()=> auth.signOut());
+
+auth.onAuthStateChanged(user => {
+  if (user){
+    currentUser = user;
+    $('loginWrap').style.display = 'none';
+    $('appWrap').style.display = 'block';
+    $('userEmailLabel').textContent = user.email;
+    loadData();
+  } else {
+    currentUser = null;
+    $('appWrap').style.display = 'none';
+    $('loginWrap').style.display = 'block';
+  }
+});
+
+async function fsGet(key){
+  const doc = await db.collection('users').doc(currentUser.uid).collection('appData').doc(key).get();
+  return doc.exists ? doc.data().value : null;
+}
+async function fsSet(key, value){
+  await db.collection('users').doc(currentUser.uid).collection('appData').doc(key).set({ value });
+}
+
+// ---------- Storage ----------
+async function loadData(){
+  setStatus('Cargando datos...');
+  try{
+    const cfgStr = await fsGet('config');
+    config = cfgStr ? JSON.parse(cfgStr) : null;
+  }catch(e){ config = null; }
+  try{
+    const salesStr = await fsGet('sales');
+    sales = salesStr ? JSON.parse(salesStr) : [];
+  }catch(e){ sales = []; }
+  setStatus('');
+
+  if (!config){
+    config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    config.finPeriodo = toISODate(lastDayOfPeriod(config.period));
+    $('modalTitle').textContent = 'Confirmá los parámetros del período';
+    fillConfigForm();
+    $('setupOverlay').style.display = 'flex';
+  } else {
+    if (!config.tier) config.tier = 'PART';
+    if (!config.pisos) config.pisos = JSON.parse(JSON.stringify(DEFAULT_CONFIG.pisos));
+    if (!config.finPeriodo) config.finPeriodo = toISODate(lastDayOfPeriod(config.period));
+    if (!config.diasFrancos) config.diasFrancos = [0,3];
+    if (!config.unitsPerPack) config.unitsPerPack = 10;
+    CATEGORIES.forEach(c => { if (config.values[c.id] === undefined) config.values[c.id] = 0; });
+  }
+  populateSelects();
+  const todayStr = toISODate(new Date());
+  $('manualDate').value = todayStr;
+  $('confirmDate').value = todayStr;
+  render();
+}
+async function saveConfig(){ await fsSet('config', JSON.stringify(config)); }
+async function saveSales(){ await fsSet('sales', JSON.stringify(sales)); }
+
+
+// ---------- Calendario / ritmo ----------
+function calendarInfo(){
+  const end = new Date(config.finPeriodo+'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const francos = config.diasFrancos || [];
+  const cursor = new Date(today);
+  let totalDays = 0, restDays = 0;
+  while (cursor <= end){
+    totalDays++;
+    if (francos.includes(cursor.getDay())) restDays++;
+    cursor.setDate(cursor.getDate()+1);
+  }
+  const workingDays = Math.max(totalDays-restDays, 0);
+  return {today, end, totalDays, restDays, workingDays};
+}
+function elapsedWorkInfo(){
+  const start = firstDayOfPeriod(config.period);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const francos = config.diasFrancos || [];
+  const cursor = new Date(start);
+  let totalDays = 0, restDays = 0;
+  while (cursor <= today){
+    totalDays++;
+    if (francos.includes(cursor.getDay())) restDays++;
+    cursor.setDate(cursor.getDate()+1);
+  }
+  const workingDays = Math.max(totalDays-restDays, 0);
+  return {start, today, totalDays, restDays, workingDays};
+}
+
+// ---------- Computations ----------
+function totalPacks(){
+  let points = 0;
+  sales.forEach(s=>{ points += (config.values[s.catId]||0) * s.qty; });
+  return points / (config.unitsPerPack||10);
+}
+function categoryCount(id){
+  return sales.filter(s=>s.catId===id).reduce((s,v)=>s+v.qty,0);
+}
+function itemActual(item){
+  return item.ids.reduce((s,id)=> s + categoryCount(id), 0);
+}
+function itemPiso(item){
+  return config.pisos[config.tier][item.key] || 0;
+}
+function accel1Info(){
+  const packs = totalPacks();
+  const tiers = [...config.packTiers].sort((a,b)=>a.min-b.min);
+  let current = {min:0,pct:0}, next = tiers[0];
+  for (let i=0;i<tiers.length;i++){
+    if (packs >= tiers[i].min){ current = tiers[i]; next = tiers[i+1] || null; }
+  }
+  return {packs, pct: current.pct, next};
+}
+function groupCumplida(group){
+  const items = METRIC_ITEMS.filter(i=>i.group===group);
+  if (items.length === 0) return false;
+  return items.every(i => itemActual(i) >= itemPiso(i));
+}
+function metricsCumplidas(){
+  return ['servicios','accesorios','cater'].filter(groupCumplida).length;
+}
+
+// ---------- Render ----------
+function render(){
+  if (!config) return;
+  const cal = calendarInfo();
+  const a1 = accel1Info();
+
+  $('periodTag').textContent = 'Período ' + config.period;
+  $('tierTag').textContent = config.tier;
+
+  if (cal.workingDays > 0){
+    $('calendarBar').innerHTML = `Quedan <b>${cal.workingDays} días hábiles</b> hasta fin de período (${cal.totalDays} días corridos, ${cal.restDays} francos)`;
+  } else {
+    $('calendarBar').innerHTML = `El período ya terminó o termina hoy.`;
+  }
+
+  $('accel1Pct').textContent = fmtNum(a1.pct,2).replace('.',',') + '%';
+  $('accel1Packs').textContent = fmtNum(a1.packs,2) + ' packs';
+
+  let barPct, msg, paceMsg = '';
+  if (a1.next){
+    barPct = Math.min((a1.packs / a1.next.min) * 100, 100);
+    const missing = Math.max(a1.next.min - a1.packs, 0);
+    msg = `Te faltan <b>${fmtNum(missing,2)} packs</b> para pasar al ${fmtNum(a1.next.pct,2).replace('.',',')}%.`;
+    if (cal.workingDays > 0 && missing > 0){
+      paceMsg = `Ritmo necesario: <b>${fmtNum(missing/cal.workingDays,2)} packs por día hábil</b>.`;
+    }
+  } else {
+    barPct = 100;
+    msg = `<b>¡Tope de acelerador alcanzado!</b> Estás en el nivel máximo.`;
+  }
+  $('accel1Bar').style.width = barPct.toFixed(1)+'%';
+  $('accel1Msg').innerHTML = msg;
+  $('accel1Pace').innerHTML = paceMsg;
+
+  const groups = ['servicios','accesorios','cater'];
+  const metricListEl = $('metricList');
+  metricListEl.innerHTML = groups.map(g=>{
+    const items = METRIC_ITEMS.filter(i=>i.group===g);
+    const ok = groupCumplida(g);
+    const subHtml = items.map(item=>{
+      const actual = itemActual(item);
+      const piso = itemPiso(item);
+      const pct = piso > 0 ? Math.min((actual/piso)*100,100) : 0;
+      const itemOk = piso > 0 && actual >= piso;
+      const missing = Math.max(piso-actual,0);
+      let paceLine = '';
+      if (!itemOk && missing > 0 && cal.workingDays > 0){
+        paceLine = `<div class="metric-pace">Faltan <b>${missing}</b> · ${fmtNum(missing/cal.workingDays,2)} por día hábil</div>`;
+      } else if (!itemOk && missing > 0){
+        paceLine = `<div class="metric-pace">Faltan <b>${missing}</b></div>`;
+      }
+      return `<div class="metric-sub ${itemOk?'done':''}">
+        <div class="metric-sub-top"><span class="nm">${item.label}</span><span class="nums">${actual} / ${piso}</span></div>
+        <div class="metric-bar-track"><div class="metric-bar-fill ${itemOk?'ok':''}" style="width:${pct}%"></div></div>
+        ${paceLine}
+      </div>`;
+    }).join('');
+    return `<div class="metric-group">
+      <div class="metric-group-head">
+        <span class="gname">${GROUP_LABEL[g]}</span>
+        <span class="metric-badge ${ok?'badge-ok':'badge-pending'}">${ok?'Piso cumplido':'Pendiente'}</span>
+      </div>
+      ${subHtml}
+    </div>`;
+  }).join('');
+
+  const cumplidas = metricsCumplidas();
+  $('metricSummary').textContent = cumplidas + '/3';
+  const pec = config.pisos[config.tier].usoPec;
+  $('pecNote').textContent = `Uso PEC (objetivo informativo): ${pec}% — no se calcula automáticamente.`;
+
+  const accel2El = $('accel2Row');
+  accel2El.innerHTML = [0,1,2,3].map(n=>{
+    const active = n === cumplidas;
+    return `<div class="lvl-box ${active?'active':''}">
+      <div class="n">${n}</div>
+      <div class="p">${fmtNum(config.metricTiers[n],2).replace('.',',')}%</div>
+    </div>`;
+  }).join('');
+
+  const packsProgress = a1.next ? Math.min((a1.packs/a1.next.min)*100,100) : 100;
+  const metricsProgress = (cumplidas/3)*100;
+  $('motivational').textContent = motivationalFor((packsProgress+metricsProgress)/2);
+
+  renderLog();
+}
+
+function renderLog(){
+  const list = $('logList');
+  if (sales.length === 0){
+    list.innerHTML = '<div class="empty">Sin ventas registradas todavía.</div>';
+    return;
+  }
+  const sorted = [...sales].sort((a,b)=> b.ts - a.ts).slice(0,20);
+  list.innerHTML = sorted.map(s=>{
+    const cat = CATEGORIES.find(c=>c.id===s.catId);
+    const d = new Date(s.ts);
+    const dateStr = d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="log-item">
+      <div><div>${s.qty}x ${cat?cat.label:'?'} <span class="grp">${cat?GROUP_LABEL[cat.group]:''}</span></div><div class="meta">${dateStr}</div></div>
+      <button class="del" data-id="${s.id}" aria-label="Eliminar">✕</button>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.del').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      const id = e.currentTarget.getAttribute('data-id');
+      sales = sales.filter(s => String(s.id) !== id);
+      await saveSales();
+      render();
+    });
+  });
+}
+
+// ---------- Informe ----------
+function buildReport(){
+  const cal = calendarInfo();
+  const elapsed = elapsedWorkInfo();
+  const a1 = accel1Info();
+  const cumplidas = metricsCumplidas();
+  const lines = [];
+  lines.push(`INFORME · Período ${config.period} (${config.tier})`);
+  lines.push(`Hoy: ${cal.today.toLocaleDateString('es-AR')}`);
+  lines.push(`Días trabajados: ${elapsed.workingDays} días hábiles (desde ${elapsed.start.toLocaleDateString('es-AR')} hasta hoy, de ${elapsed.totalDays} corridos)`);
+  lines.push(cal.workingDays>0
+    ? `Días hábiles restantes: ${cal.workingDays} (${cal.totalDays} corridos, ${cal.restDays} francos)`
+    : `El período ya terminó o termina hoy.`);
+  lines.push(`Promedio de packs por día trabajado: ${fmtNum(a1.packs/Math.max(elapsed.workingDays,1),2)}`);
+  lines.push('');
+  lines.push('ACELERADOR POR PACKS');
+  lines.push(`Packs actuales: ${fmtNum(a1.packs,2)} — Nivel: ${fmtNum(a1.pct,2)}%`);
+  if (a1.next){
+    const missing = Math.max(a1.next.min-a1.packs,0);
+    lines.push(`Faltan ${fmtNum(missing,2)} packs para ${fmtNum(a1.next.pct,2)}%` + (cal.workingDays>0 ? ` (${fmtNum(missing/cal.workingDays,2)}/día hábil)` : ''));
+  } else {
+    lines.push('Tope de acelerador alcanzado.');
+  }
+  lines.push('');
+  lines.push('MÉTRICAS');
+  ['servicios','accesorios','cater'].forEach(g=>{
+    lines.push(`${GROUP_LABEL[g]}: ${groupCumplida(g) ? 'CUMPLIDO' : 'pendiente'}`);
+    METRIC_ITEMS.filter(i=>i.group===g).forEach(item=>{
+      const actual = itemActual(item), piso = itemPiso(item), missing = Math.max(piso-actual,0);
+      let l = `  - ${item.label}: ${actual}/${piso}`;
+      if (missing>0){
+        l += ` (faltan ${missing}` + (cal.workingDays>0 ? `, ${fmtNum(missing/cal.workingDays,2)}/día` : '') + ')';
+      }
+      lines.push(l);
+    });
+  });
+  lines.push('');
+  lines.push(`ACELERADOR POR MÉTRICAS: ${cumplidas}/3 → ${fmtNum(config.metricTiers[cumplidas],2)}%`);
+  lines.push('');
+  lines.push(`Uso PEC (informativo): ${config.pisos[config.tier].usoPec}%`);
+  return lines.join('\n');
+}
+$('reportBtn').addEventListener('click', ()=>{
+  $('reportText').textContent = buildReport();
+  $('reportOverlay').style.display = 'flex';
+});
+$('reportClose').addEventListener('click', ()=>{ $('reportOverlay').style.display = 'none'; });
+
+// ---------- Selects ----------
+function populateSelects(){
+  const optionsHtml = groupsOrder().map(g=>{
+    const opts = CATEGORIES.filter(c=>c.group===g).map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
+    return `<optgroup label="${GROUP_LABEL[g]}">${opts}</optgroup>`;
+  }).join('');
+  $('manualCat').innerHTML = optionsHtml;
+  $('confirmCat').innerHTML = optionsHtml;
+}
+function groupsOrder(){ return ['accesorios','servicios','cater']; }
+
+// ---------- Add sale ----------
+async function addSale(catId, qty, dateStr){
+  qty = Number(qty);
+  if (!catId || !qty || qty <= 0) return;
+  let ts = Date.now();
+  if (dateStr){
+    const now = new Date();
+    ts = new Date(dateStr+'T'+now.toTimeString().slice(0,8)).getTime();
+  }
+  sales.push({ id: Date.now()+Math.random(), catId, qty, ts });
+  setStatus('Guardando...');
+  try{ await saveSales(); setStatus(''); }
+  catch(e){ setStatus('No se pudo guardar. Intentá de nuevo.'); }
+  render();
+}
+
+$('manualAdd').addEventListener('click', async ()=>{
+  await addSale($('manualCat').value, $('manualQty').value || 1, $('manualDate').value);
+  $('manualQty').value = 1;
+  $('manualDate').value = toISODate(new Date());
+});
+
+// ---------- Voice ----------
+function parseQtyFromText(text){
+  const words = {'un':1,'uno':1,'una':1,'dos':2,'tres':3,'cuatro':4,'cinco':5,'seis':6,'siete':7,'ocho':8,'nueve':9,'diez':10};
+  const cleaned = text.toLowerCase();
+  const digitMatch = cleaned.match(/\d+/);
+  if (digitMatch) return parseInt(digitMatch[0],10);
+  const tokens = cleaned.replace(/[.,]/g,'').split(/\s+/);
+  for (const w of tokens){ if (words.hasOwnProperty(w)) return words[w]; }
+  return null;
+}
+function matchCategory(text){
+  const lower = text.toLowerCase();
+  for (const cat of CATEGORIES){
+    for (const rx of cat.kw){
+      const m = lower.match(rx);
+      if (m){
+        const remaining = lower.slice(0,m.index) + ' ' + lower.slice(m.index+m[0].length);
+        return {cat, remaining};
+      }
+    }
+  }
+  return null;
+}
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null, recognizing = false;
+
+if (SpeechRecognition){
+  recognition = new SpeechRecognition();
+  recognition.lang = 'es-ES';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => { recognizing = true; $('micBtn').classList.add('recording'); $('micHint').textContent = 'Escuchando... hablá ahora.'; };
+  recognition.onend = () => { recognizing = false; $('micBtn').classList.remove('recording'); $('micHint').innerHTML = 'Toca y decí, por ejemplo: <b>"vendí un ACC nivel 2"</b>'; };
+  recognition.onerror = () => { recognizing = false; $('micBtn').classList.remove('recording'); $('micHint').textContent = 'No se entendió bien. Probá de nuevo o cargá manual.'; };
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    const match = matchCategory(transcript);
+    const qty = match ? (parseQtyFromText(match.remaining) || 1) : (parseQtyFromText(transcript) || 1);
+    $('heardText').textContent = `Se escuchó: "${transcript}"`;
+    if (match) $('confirmCat').value = match.cat.id;
+    $('confirmQty').value = qty;
+    $('confirmPanel').style.display = 'block';
+  };
+  $('micBtn').addEventListener('click', () => {
+    if (recognizing){ recognition.stop(); return; }
+    try{ recognition.start(); } catch(e){}
+  });
+} else {
+  $('micBtn').disabled = true;
+  $('micHint').textContent = 'Tu navegador no soporta grabación de voz. Usá el campo manual de abajo.';
+}
+
+$('confirmSave').addEventListener('click', async () => {
+  await addSale($('confirmCat').value, $('confirmQty').value, $('confirmDate').value);
+  $('confirmPanel').style.display = 'none';
+});
+$('confirmCancel').addEventListener('click', () => { $('confirmPanel').style.display = 'none'; });
+
+// ---------- Config modal ----------
+function renderTierFields(){
+  const tier = $('cfgTier').value;
+  $('pisoTierLabel').textContent = '· ' + tier;
+  $('pisoRows').innerHTML = METRIC_ITEMS.map(item=>`
+    <div class="cfg-grid">
+      <label>${item.label}</label>
+      <input type="number" class="piso-input" data-key="${item.key}" value="${config.pisos[tier][item.key]}">
+    </div>`).join('');
+  $('pecInput').value = config.pisos[tier].usoPec;
+}
+
+function fillConfigForm(){
+  $('cfgPeriod').value = config.period;
+  $('cfgTier').value = config.tier;
+  $('cfgFinPeriodo').value = config.finPeriodo;
+  $('cfgUnitsPerPack').value = config.unitsPerPack;
+
+  const DAY_NAMES = [{v:1,l:'Lun'},{v:2,l:'Mar'},{v:3,l:'Mié'},{v:4,l:'Jue'},{v:5,l:'Vie'},{v:6,l:'Sáb'},{v:0,l:'Dom'}];
+  const selected = new Set(config.diasFrancos || []);
+  $('francosChecks').innerHTML = DAY_NAMES.map(d=>
+    `<button type="button" class="day-chip ${selected.has(d.v)?'active':''}" data-day="${d.v}">${d.l}</button>`
+  ).join('');
+  $('francosChecks').querySelectorAll('.day-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> chip.classList.toggle('active'));
+  });
+
+  renderTierFields();
+  $('cfgTier').onchange = renderTierFields;
+
+  $('tierRows').innerHTML = config.packTiers.map((t,i)=>`
+    <div class="tier-row">
+      <span>Nivel ${i+1} — desde</span>
+      <input type="number" step="0.01" class="tier-min" data-i="${i}" value="${t.min}">
+      <input type="number" step="0.1" class="tier-pct" data-i="${i}" value="${t.pct}">
+    </div>`).join('');
+
+  $('m0').value = config.metricTiers[0];
+  $('m1').value = config.metricTiers[1];
+  $('m2').value = config.metricTiers[2];
+  $('m3').value = config.metricTiers[3];
+
+  $('valueRows').innerHTML = CATEGORIES.map(c=>`
+    <div class="cfg-grid">
+      <label>${c.label}</label>
+      <input type="number" step="0.01" class="val-input" data-id="${c.id}" value="${config.values[c.id]}">
+    </div>`).join('');
+}
+
+$('editConfigBtn').addEventListener('click', () => {
+  $('modalTitle').textContent = 'Editar parámetros';
+  fillConfigForm();
+  $('setupOverlay').style.display = 'flex';
+});
+$('cfgCancel').addEventListener('click', () => { $('setupOverlay').style.display = 'none'; });
+
+$('cfgSave').addEventListener('click', async () => {
+  config.period = $('cfgPeriod').value || config.period;
+  config.tier = $('cfgTier').value;
+  config.finPeriodo = $('cfgFinPeriodo').value || toISODate(lastDayOfPeriod(config.period));
+  config.diasFrancos = Array.from(document.querySelectorAll('.day-chip.active')).map(c=>Number(c.getAttribute('data-day')));
+  config.unitsPerPack = Number($('cfgUnitsPerPack').value) || 10;
+
+  document.querySelectorAll('.piso-input').forEach(inp => {
+    config.pisos[config.tier][inp.getAttribute('data-key')] = Number(inp.value) || 0;
+  });
+  config.pisos[config.tier].usoPec = Number($('pecInput').value) || 0;
+
+  const mins = document.querySelectorAll('.tier-min');
+  const pcts = document.querySelectorAll('.tier-pct');
+  config.packTiers = Array.from(mins).map((m,i)=>({min:Number(m.value)||0, pct:Number(pcts[i].value)||0}));
+  config.metricTiers = { 0:Number($('m0').value)||0, 1:Number($('m1').value)||0, 2:Number($('m2').value)||0, 3:Number($('m3').value)||0 };
+  document.querySelectorAll('.val-input').forEach(inp=>{
+    config.values[inp.getAttribute('data-id')] = Number(inp.value) || 0;
+  });
+
+  setStatus('Guardando configuración...');
+  try{ await saveConfig(); setStatus(''); }
+  catch(e){ setStatus('No se pudo guardar la configuración.'); }
+  $('setupOverlay').style.display = 'none';
+  render();
+});
+
+$('resetBtn').addEventListener('click', async () => {
+  if (!confirm('¿Reiniciar el período? Se borrará el historial de ventas cargado (los parámetros se mantienen).')) return;
+  sales = [];
+  setStatus('Reiniciando...');
+  try{ await saveSales(); setStatus(''); } catch(e){ setStatus('No se pudo reiniciar.'); }
+  render();
+});
+</script>
+</body>
+</html>
