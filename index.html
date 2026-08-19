@@ -116,6 +116,8 @@
   .piso-row label{font-size:12px;}
   .day-chip{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 10px;border-radius:8px;border:1px solid var(--paper-line);background:#fff;cursor:pointer;user-select:none;}
   .day-chip.active{background:linear-gradient(135deg,var(--purple),var(--stamp-red));color:#fff;border-color:transparent;}
+  .nowork-chip{font-family:'IBM Plex Mono',monospace;font-size:11.5px;background:var(--amber-dim);color:var(--amber);border-radius:16px;padding:5px 10px;display:flex;align-items:center;gap:6px;}
+  .nowork-chip button{background:none;border:none;color:var(--amber);cursor:pointer;font-size:13px;padding:0;line-height:1;}
   .report-text{white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.6;background:var(--paper-dim);border:1px solid var(--paper-line);border-radius:8px;padding:14px;}
 
   .footer-actions{display:flex;justify-content:center;gap:14px;margin-top:16px;flex-wrap:wrap;}
@@ -245,9 +247,17 @@
     <label style="font-size:12.5px;display:block;margin-bottom:6px;">Tus francos fijos (se repiten cada semana)</label>
     <div id="francosChecks" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
 
+    <label style="font-size:12.5px;display:block;margin-bottom:6px;">Días puntuales no trabajados (enfermedad, estudio, etc.)</label>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input type="date" id="noWorkDateInput" style="flex:1;">
+      <button type="button" class="btn secondary" id="addNoWorkDay" style="margin-top:0;width:auto;padding:10px 14px;white-space:nowrap;">+ Agregar</button>
+    </div>
+    <div id="noWorkList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+
     <h3>Pisos / objetivos por métrica <span id="pisoTierLabel"></span></h3>
     <div id="pisoRows"></div>
-    <div class="cfg-grid"><label>Uso PEC (informativo, %)</label><input type="number" id="pecInput"></div>
+    <div class="cfg-grid"><label>Nombre del recordatorio</label><input type="text" id="reminderLabelInput" placeholder="Recordatorio"></div>
+    <div class="cfg-grid"><label>Nota</label><input type="text" id="reminderValueInput" placeholder="Agregá acá tu recordatorio"></div>
 
     <h3>Acelerador por Packs (umbral desde)</h3>
     <div id="tierRows"></div>
@@ -272,7 +282,11 @@
   <div class="modal">
     <h2>Informe</h2>
     <div class="report-text" id="reportText"></div>
-    <button class="btn secondary" id="reportClose">Cerrar</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" id="reportShare" style="flex:1;">📤 Exportar / Compartir</button>
+      <button class="btn secondary" id="reportClose" style="flex:1;">Cerrar</button>
+    </div>
+    <div class="status" id="shareStatus"></div>
   </div>
 </div>
 
@@ -339,9 +353,10 @@ const DEFAULT_CONFIG = {
   diasFrancos: [0,3],        // 0=domingo,1=lunes,2=martes,3=miércoles,4=jueves,5=viernes,6=sábado
   unitsPerPack: 10,
   labels: {},
+  diasNoTrabajados: [],
   pisos: {
-    PART: { fija:1, portas:7, accesorios:125, cater:35, canjea:6, migracion:6, seguro:5, usoPec:100 },
-    FULL: { fija:1, portas:9, accesorios:130, cater:41, canjea:6, migracion:6, seguro:6, usoPec:100 }
+    PART: { fija:1, portas:7, accesorios:125, cater:35, canjea:6, migracion:6, seguro:5, reminderValue:'' },
+    FULL: { fija:1, portas:9, accesorios:130, cater:41, canjea:6, migracion:6, seguro:6, reminderValue:'' }
   },
   packTiers: [ {min:1,pct:0}, {min:22,pct:7.5}, {min:35,pct:15}, {min:47,pct:25} ],
   metricTiers: {0:100, 1:105, 2:110, 3:120},
@@ -391,6 +406,32 @@ const db = firebase.firestore();
 let currentUser = null;
 
 let registerMode = false;
+let tempNoWorkDays = [];
+
+function renderNoWorkList(){
+  const sorted = [...tempNoWorkDays].sort();
+  $('noWorkList').innerHTML = sorted.length === 0
+    ? '<span style="font-size:12px;color:var(--gray);">Sin días puntuales cargados.</span>'
+    : sorted.map(d=>{
+        const dd = new Date(d+'T00:00:00');
+        const label = dd.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+        return `<span class="nowork-chip">${label}<button type="button" data-date="${d}" class="rm-nowork">✕</button></span>`;
+      }).join('');
+  $('noWorkList').querySelectorAll('.rm-nowork').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const d = e.currentTarget.getAttribute('data-date');
+      tempNoWorkDays = tempNoWorkDays.filter(x=>x!==d);
+      renderNoWorkList();
+    });
+  });
+}
+$('addNoWorkDay').addEventListener('click', ()=>{
+  const val = $('noWorkDateInput').value;
+  if (!val) return;
+  if (!tempNoWorkDays.includes(val)) tempNoWorkDays.push(val);
+  $('noWorkDateInput').value = '';
+  renderNoWorkList();
+});
 $('toggleModeBtn').addEventListener('click', ()=>{
   registerMode = !registerMode;
   $('loginBtn').textContent = registerMode ? 'Crear cuenta' : 'Iniciar sesión';
@@ -457,6 +498,12 @@ async function loadData(){
     if (!config.diasFrancos) config.diasFrancos = [0,3];
     if (!config.unitsPerPack) config.unitsPerPack = 10;
     if (!config.labels) config.labels = {};
+    if (!config.diasNoTrabajados) config.diasNoTrabajados = [];
+    ['PART','FULL'].forEach(t=>{
+      if (config.pisos[t].reminderValue === undefined){
+        config.pisos[t].reminderValue = config.pisos[t].usoPec !== undefined ? String(config.pisos[t].usoPec) + '%' : '';
+      }
+    });
     CATEGORIES.forEach(c => { if (config.values[c.id] === undefined) config.values[c.id] = 0; });
   }
   populateSelects();
@@ -474,11 +521,12 @@ function calendarInfo(){
   const end = new Date(config.finPeriodo+'T00:00:00');
   const today = new Date(); today.setHours(0,0,0,0);
   const francos = config.diasFrancos || [];
+  const extras = new Set(config.diasNoTrabajados || []);
   const cursor = new Date(today);
   let totalDays = 0, restDays = 0;
   while (cursor <= end){
     totalDays++;
-    if (francos.includes(cursor.getDay())) restDays++;
+    if (francos.includes(cursor.getDay()) || extras.has(toISODate(cursor))) restDays++;
     cursor.setDate(cursor.getDate()+1);
   }
   const workingDays = Math.max(totalDays-restDays, 0);
@@ -488,11 +536,12 @@ function elapsedWorkInfo(){
   const start = firstDayOfPeriod(config.period);
   const today = new Date(); today.setHours(0,0,0,0);
   const francos = config.diasFrancos || [];
+  const extras = new Set(config.diasNoTrabajados || []);
   const cursor = new Date(start);
   let totalDays = 0, restDays = 0;
   while (cursor <= today){
     totalDays++;
-    if (francos.includes(cursor.getDay())) restDays++;
+    if (francos.includes(cursor.getDay()) || extras.has(toISODate(cursor))) restDays++;
     cursor.setDate(cursor.getDate()+1);
   }
   const workingDays = Math.max(totalDays-restDays, 0);
@@ -542,7 +591,7 @@ function render(){
   $('tierTag').textContent = config.tier;
 
   if (cal.workingDays > 0){
-    $('calendarBar').innerHTML = `Quedan <b>${cal.workingDays} días hábiles</b> hasta fin de período (${cal.totalDays} días corridos, ${cal.restDays} francos)`;
+    $('calendarBar').innerHTML = `Te quedan <b>${cal.workingDays} días hábiles</b> para cerrar el período (${cal.totalDays} días en total, con ${cal.restDays} francos).`;
   } else {
     $('calendarBar').innerHTML = `El período ya terminó o termina hoy.`;
   }
@@ -554,9 +603,9 @@ function render(){
   if (a1.next){
     barPct = Math.min((a1.packs / a1.next.min) * 100, 100);
     const missing = Math.max(a1.next.min - a1.packs, 0);
-    msg = `Te faltan <b>${fmtNum(missing,2)} packs</b> para pasar al ${fmtNum(a1.next.pct,2).replace('.',',')}%.`;
+    msg = `Te faltan <b>${fmtNum(missing,2)} packs</b> para subir tu acelerador al ${fmtNum(a1.next.pct,2).replace('.',',')}%.`;
     if (cal.workingDays > 0 && missing > 0){
-      paceMsg = `Ritmo necesario: <b>${fmtNum(missing/cal.workingDays,2)} packs por día hábil</b>.`;
+      paceMsg = `Ritmo sugerido: necesitás vender unos <b>${fmtNum(missing/cal.workingDays,2)} packs por día hábil</b>.`;
     }
   } else {
     barPct = 100;
@@ -578,10 +627,8 @@ function render(){
       const itemOk = piso > 0 && actual >= piso;
       const missing = Math.max(piso-actual,0);
       let paceLine = '';
-      if (!itemOk && missing > 0 && cal.workingDays > 0){
-        paceLine = `<div class="metric-pace">Faltan <b>${missing}</b> · ${fmtNum(missing/cal.workingDays,2)} por día hábil</div>`;
-      } else if (!itemOk && missing > 0){
-        paceLine = `<div class="metric-pace">Faltan <b>${missing}</b></div>`;
+      if (!itemOk && missing > 0){
+        paceLine = `<div class="metric-pace">${missing===1?'Falta':'Faltan'} <b>${missing}</b></div>`;
       }
       return `<div class="metric-sub ${itemOk?'done':''}">
         <div class="metric-sub-top"><span class="nm">${metricLabel(item)}</span><span class="nums">${actual} / ${piso}</span></div>
@@ -600,8 +647,9 @@ function render(){
 
   const cumplidas = metricsCumplidas();
   $('metricSummary').textContent = cumplidas + '/3';
-  const pec = config.pisos[config.tier].usoPec;
-  $('pecNote').textContent = `Uso PEC (objetivo informativo): ${pec}% — no se calcula automáticamente.`;
+  const reminderLabel = (config.labels && config.labels['reminder']) || 'Recordatorio';
+  const reminderValue = config.pisos[config.tier].reminderValue;
+  $('pecNote').textContent = reminderValue ? `${reminderLabel}: ${reminderValue}` : '';
 
   const accel2El = $('accel2Row');
   accel2El.innerHTML = [0,1,2,3].map(n=>{
@@ -652,39 +700,45 @@ function buildReport(){
   const a1 = accel1Info();
   const cumplidas = metricsCumplidas();
   const lines = [];
-  lines.push(`INFORME · Período ${config.period} (${config.tier})`);
+  lines.push(`📋 INFORME · Período ${config.period} (${config.tier})`);
   lines.push(`Hoy: ${cal.today.toLocaleDateString('es-AR')}`);
-  lines.push(`Días trabajados: ${elapsed.workingDays} días hábiles (desde ${elapsed.start.toLocaleDateString('es-AR')} hasta hoy, de ${elapsed.totalDays} corridos)`);
+  lines.push(`Ya llevás ${elapsed.workingDays} días hábiles trabajados (desde el ${elapsed.start.toLocaleDateString('es-AR')} hasta hoy, de ${elapsed.totalDays} días en total).`);
   lines.push(cal.workingDays>0
-    ? `Días hábiles restantes: ${cal.workingDays} (${cal.totalDays} corridos, ${cal.restDays} francos)`
+    ? `Te quedan ${cal.workingDays} días hábiles para cerrar el período (${cal.totalDays} días en total, con ${cal.restDays} francos).`
     : `El período ya terminó o termina hoy.`);
-  lines.push(`Promedio de packs por día trabajado: ${fmtNum(a1.packs/Math.max(elapsed.workingDays,1),2)}`);
+  lines.push(`Promedio de packs por día: ${fmtNum(a1.packs/Math.max(elapsed.workingDays,1),2)} (calculado sobre los días que ya trabajaste).`);
   lines.push('');
-  lines.push('ACELERADOR POR PACKS');
-  lines.push(`Packs actuales: ${fmtNum(a1.packs,2)} — Nivel: ${fmtNum(a1.pct,2)}%`);
+  lines.push('💪 ACELERADOR POR PACKS');
+  lines.push(`Llevás ${fmtNum(a1.packs,2)} packs — nivel actual: ${fmtNum(a1.pct,2)}%`);
   if (a1.next){
     const missing = Math.max(a1.next.min-a1.packs,0);
-    lines.push(`Faltan ${fmtNum(missing,2)} packs para ${fmtNum(a1.next.pct,2)}%` + (cal.workingDays>0 ? ` (${fmtNum(missing/cal.workingDays,2)}/día hábil)` : ''));
+    lines.push(`Te faltan ${fmtNum(missing,2)} packs para subir al ${fmtNum(a1.next.pct,2)}%` + (cal.workingDays>0 ? ` (necesitás vender unos ${fmtNum(missing/cal.workingDays,2)} por día hábil)` : ''));
   } else {
-    lines.push('Tope de acelerador alcanzado.');
+    lines.push('¡Tope de acelerador alcanzado! Estás en el nivel máximo.');
   }
   lines.push('');
-  lines.push('MÉTRICAS');
+  lines.push('🎯 MÉTRICAS');
   ['servicios','accesorios','cater'].forEach(g=>{
-    lines.push(`${GROUP_LABEL[g]}: ${groupCumplida(g) ? 'CUMPLIDO' : 'pendiente'}`);
+    lines.push(`${GROUP_LABEL[g]} — ${groupCumplida(g) ? '✅ Completo' : '⏳ Pendiente'}`);
     METRIC_ITEMS.filter(i=>i.group===g).forEach(item=>{
       const actual = itemActual(item), piso = itemPiso(item), missing = Math.max(piso-actual,0);
-      let l = `  - ${metricLabel(item)}: ${actual}/${piso}`;
-      if (missing>0){
-        l += ` (faltan ${missing}` + (cal.workingDays>0 ? `, ${fmtNum(missing/cal.workingDays,2)}/día` : '') + ')';
+      let l = `  • ${metricLabel(item)}: llevás ${actual} de ${piso}`;
+      if (missing>1){
+        l += ` — te faltan ${missing}`;
+      } else if (missing===1){
+        l += ` — te falta 1`;
+      } else {
+        l += ` ✅`;
       }
       lines.push(l);
     });
   });
   lines.push('');
-  lines.push(`ACELERADOR POR MÉTRICAS: ${cumplidas}/3 → ${fmtNum(config.metricTiers[cumplidas],2)}%`);
+  lines.push(`🚀 ACELERADOR POR MÉTRICAS: completaste ${cumplidas} de 3 grupos → ${fmtNum(config.metricTiers[cumplidas],2)}%`);
   lines.push('');
-  lines.push(`Uso PEC (informativo): ${config.pisos[config.tier].usoPec}%`);
+  const reminderLabel = (config.labels && config.labels['reminder']) || 'Recordatorio';
+  const reminderValue = config.pisos[config.tier].reminderValue;
+  if (reminderValue) lines.push(`${reminderLabel}: ${reminderValue}`);
   return lines.join('\n');
 }
 $('reportBtn').addEventListener('click', ()=>{
@@ -692,6 +746,24 @@ $('reportBtn').addEventListener('click', ()=>{
   $('reportOverlay').style.display = 'flex';
 });
 $('reportClose').addEventListener('click', ()=>{ $('reportOverlay').style.display = 'none'; });
+
+$('reportShare').addEventListener('click', async ()=>{
+  const text = buildReport();
+  const statusEl = $('shareStatus');
+  if (navigator.share){
+    try{
+      await navigator.share({ title: 'Informe de comisiones', text });
+    }catch(e){ /* usuario canceló, no hacemos nada */ }
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    statusEl.textContent = '¡Informe copiado! Pegalo donde quieras enviarlo.';
+    setTimeout(()=>{ statusEl.textContent=''; }, 3000);
+  }catch(e){
+    statusEl.textContent = 'No se pudo copiar automáticamente. Seleccioná el texto de arriba manualmente.';
+  }
+});
 
 // ---------- Selects ----------
 function populateSelects(){
@@ -858,7 +930,8 @@ function renderTierFields(){
       <input type="text" class="piso-name" data-key="${item.key}" value="${metricLabel(item)}">
       <input type="number" class="piso-input" data-key="${item.key}" value="${config.pisos[tier][item.key]}">
     </div>`).join('');
-  $('pecInput').value = config.pisos[tier].usoPec;
+  $('reminderLabelInput').value = (config.labels && config.labels['reminder']) || 'Recordatorio';
+  $('reminderValueInput').value = config.pisos[tier].reminderValue || '';
 }
 
 function fillConfigForm(){
@@ -875,6 +948,9 @@ function fillConfigForm(){
   $('francosChecks').querySelectorAll('.day-chip').forEach(chip=>{
     chip.addEventListener('click', ()=> chip.classList.toggle('active'));
   });
+
+  tempNoWorkDays = [...(config.diasNoTrabajados || [])];
+  renderNoWorkList();
 
   renderTierFields();
   $('cfgTier').onchange = renderTierFields;
@@ -910,6 +986,7 @@ $('cfgSave').addEventListener('click', async () => {
   config.tier = $('cfgTier').value;
   config.finPeriodo = $('cfgFinPeriodo').value || toISODate(lastDayOfPeriod(config.period));
   config.diasFrancos = Array.from(document.querySelectorAll('.day-chip.active')).map(c=>Number(c.getAttribute('data-day')));
+  config.diasNoTrabajados = [...tempNoWorkDays];
   config.unitsPerPack = Number($('cfgUnitsPerPack').value) || 10;
   if (!config.labels) config.labels = {};
 
@@ -921,7 +998,9 @@ $('cfgSave').addEventListener('click', async () => {
     const val = inp.value.trim();
     if (val) config.labels['metric:'+key] = val;
   });
-  config.pisos[config.tier].usoPec = Number($('pecInput').value) || 0;
+  config.pisos[config.tier].reminderValue = $('reminderValueInput').value.trim();
+  const remLabel = $('reminderLabelInput').value.trim();
+  if (remLabel) config.labels['reminder'] = remLabel;
 
   const mins = document.querySelectorAll('.tier-min');
   const pcts = document.querySelectorAll('.tier-pct');
