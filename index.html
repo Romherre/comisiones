@@ -308,6 +308,15 @@ const METRIC_ITEMS = [
   {key:'cater', label:'CATER (Equipos 1 + Equipos 2)', group:'cater', ids:['equipos1','equipos2']},
 ];
 
+function catLabel(catId){
+  const c = CATEGORIES.find(x=>x.id===catId);
+  return (config && config.labels && config.labels['cat:'+catId]) || (c ? c.label : catId);
+}
+function metricLabel(item){
+  return (config && config.labels && config.labels['metric:'+item.key]) || item.label;
+}
+
+
 function lastDayOfPeriod(periodStr){
   const y = parseInt((periodStr||'').slice(0,4),10);
   const m = parseInt((periodStr||'').slice(4,6),10);
@@ -329,6 +338,7 @@ const DEFAULT_CONFIG = {
   finPeriodo: null,          // se completa con el último día del período si no se define
   diasFrancos: [0,3],        // 0=domingo,1=lunes,2=martes,3=miércoles,4=jueves,5=viernes,6=sábado
   unitsPerPack: 10,
+  labels: {},
   pisos: {
     PART: { fija:1, portas:7, accesorios:125, cater:35, canjea:6, migracion:6, seguro:5, usoPec:100 },
     FULL: { fija:1, portas:9, accesorios:130, cater:41, canjea:6, migracion:6, seguro:6, usoPec:100 }
@@ -446,6 +456,7 @@ async function loadData(){
     if (!config.finPeriodo) config.finPeriodo = toISODate(lastDayOfPeriod(config.period));
     if (!config.diasFrancos) config.diasFrancos = [0,3];
     if (!config.unitsPerPack) config.unitsPerPack = 10;
+    if (!config.labels) config.labels = {};
     CATEGORIES.forEach(c => { if (config.values[c.id] === undefined) config.values[c.id] = 0; });
   }
   populateSelects();
@@ -573,7 +584,7 @@ function render(){
         paceLine = `<div class="metric-pace">Faltan <b>${missing}</b></div>`;
       }
       return `<div class="metric-sub ${itemOk?'done':''}">
-        <div class="metric-sub-top"><span class="nm">${item.label}</span><span class="nums">${actual} / ${piso}</span></div>
+        <div class="metric-sub-top"><span class="nm">${metricLabel(item)}</span><span class="nums">${actual} / ${piso}</span></div>
         <div class="metric-bar-track"><div class="metric-bar-fill ${itemOk?'ok':''}" style="width:${pct}%"></div></div>
         ${paceLine}
       </div>`;
@@ -620,7 +631,7 @@ function renderLog(){
     const d = new Date(s.ts);
     const dateStr = d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     return `<div class="log-item">
-      <div><div>${s.qty}x ${cat?cat.label:'?'} <span class="grp">${cat?GROUP_LABEL[cat.group]:''}</span></div><div class="meta">${dateStr}</div></div>
+      <div><div>${s.qty}x ${cat?catLabel(cat.id):'?'} <span class="grp">${cat?GROUP_LABEL[cat.group]:''}</span></div><div class="meta">${dateStr}</div></div>
       <button class="del" data-id="${s.id}" aria-label="Eliminar">✕</button>
     </div>`;
   }).join('');
@@ -663,7 +674,7 @@ function buildReport(){
     lines.push(`${GROUP_LABEL[g]}: ${groupCumplida(g) ? 'CUMPLIDO' : 'pendiente'}`);
     METRIC_ITEMS.filter(i=>i.group===g).forEach(item=>{
       const actual = itemActual(item), piso = itemPiso(item), missing = Math.max(piso-actual,0);
-      let l = `  - ${item.label}: ${actual}/${piso}`;
+      let l = `  - ${metricLabel(item)}: ${actual}/${piso}`;
       if (missing>0){
         l += ` (faltan ${missing}` + (cal.workingDays>0 ? `, ${fmtNum(missing/cal.workingDays,2)}/día` : '') + ')';
       }
@@ -685,7 +696,7 @@ $('reportClose').addEventListener('click', ()=>{ $('reportOverlay').style.displa
 // ---------- Selects ----------
 function populateSelects(){
   const optionsHtml = groupsOrder().map(g=>{
-    const opts = CATEGORIES.filter(c=>c.group===g).map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
+    const opts = CATEGORIES.filter(c=>c.group===g).map(c=>`<option value="${c.id}">${catLabel(c.id)}</option>`).join('');
     return `<optgroup label="${GROUP_LABEL[g]}">${opts}</optgroup>`;
   }).join('');
   $('manualCat').innerHTML = optionsHtml;
@@ -751,7 +762,7 @@ function fuzzyMatchCategory(normText){
   const words = normText.split(/\s+/).filter(w=>w.length>=3);
   let best = null, bestScore = 1;
   for (const cat of CATEGORIES){
-    const labelTokens = normalizeText(cat.label).split(/\s+/).filter(w=>w.length>=3);
+    const labelTokens = normalizeText(catLabel(cat.id)).split(/\s+/).filter(w=>w.length>=3);
     for (const w of words){
       for (const lt of labelTokens){
         const dist = levenshtein(w, lt);
@@ -763,8 +774,29 @@ function fuzzyMatchCategory(normText){
   return (best && bestScore <= 0.34) ? best : null;
 }
 
+function customNameMatch(normText, cat){
+  const custom = config && config.labels && config.labels['cat:'+cat.id];
+  if (!custom) return null;
+  const tokens = normalizeText(custom).split(/\s+/).filter(w=>w.length>=3);
+  if (tokens.length===0) return null;
+  const allFound = tokens.every(t => normText.includes(t));
+  return allFound ? tokens : null;
+}
+
 function matchCategory(text){
   const norm = normalizeText(text);
+
+  // 1) nombre personalizado (si el usuario le cambió el nombre a la categoría)
+  for (const cat of CATEGORIES){
+    const tokens = customNameMatch(norm, cat);
+    if (tokens){
+      let remaining = norm;
+      tokens.forEach(t => { remaining = remaining.replace(t, ' '); });
+      return {cat, remaining};
+    }
+  }
+
+  // 2) palabras clave fijas (ax, acc nivel X, etc.)
   for (const cat of CATEGORIES){
     for (const rx of cat.kw){
       const m = norm.match(rx);
@@ -774,6 +806,8 @@ function matchCategory(text){
       }
     }
   }
+
+  // 3) por parecido, como último recurso (tolera errores de transcripción)
   const fuzzy = fuzzyMatchCategory(norm);
   if (fuzzy) return {cat: fuzzy, remaining: norm};
   return null;
@@ -821,7 +855,7 @@ function renderTierFields(){
   $('pisoTierLabel').textContent = '· ' + tier;
   $('pisoRows').innerHTML = METRIC_ITEMS.map(item=>`
     <div class="cfg-grid">
-      <label>${item.label}</label>
+      <input type="text" class="piso-name" data-key="${item.key}" value="${metricLabel(item)}">
       <input type="number" class="piso-input" data-key="${item.key}" value="${config.pisos[tier][item.key]}">
     </div>`).join('');
   $('pecInput').value = config.pisos[tier].usoPec;
@@ -859,7 +893,7 @@ function fillConfigForm(){
 
   $('valueRows').innerHTML = CATEGORIES.map(c=>`
     <div class="cfg-grid">
-      <label>${c.label}</label>
+      <input type="text" class="cat-name" data-id="${c.id}" value="${catLabel(c.id)}">
       <input type="number" step="0.01" class="val-input" data-id="${c.id}" value="${config.values[c.id]}">
     </div>`).join('');
 }
@@ -877,9 +911,15 @@ $('cfgSave').addEventListener('click', async () => {
   config.finPeriodo = $('cfgFinPeriodo').value || toISODate(lastDayOfPeriod(config.period));
   config.diasFrancos = Array.from(document.querySelectorAll('.day-chip.active')).map(c=>Number(c.getAttribute('data-day')));
   config.unitsPerPack = Number($('cfgUnitsPerPack').value) || 10;
+  if (!config.labels) config.labels = {};
 
   document.querySelectorAll('.piso-input').forEach(inp => {
     config.pisos[config.tier][inp.getAttribute('data-key')] = Number(inp.value) || 0;
+  });
+  document.querySelectorAll('.piso-name').forEach(inp => {
+    const key = inp.getAttribute('data-key');
+    const val = inp.value.trim();
+    if (val) config.labels['metric:'+key] = val;
   });
   config.pisos[config.tier].usoPec = Number($('pecInput').value) || 0;
 
@@ -887,6 +927,11 @@ $('cfgSave').addEventListener('click', async () => {
   const pcts = document.querySelectorAll('.tier-pct');
   config.packTiers = Array.from(mins).map((m,i)=>({min:Number(m.value)||0, pct:Number(pcts[i].value)||0}));
   config.metricTiers = { 0:Number($('m0').value)||0, 1:Number($('m1').value)||0, 2:Number($('m2').value)||0, 3:Number($('m3').value)||0 };
+  document.querySelectorAll('.cat-name').forEach(inp=>{
+    const id = inp.getAttribute('data-id');
+    const val = inp.value.trim();
+    if (val) config.labels['cat:'+id] = val;
+  });
   document.querySelectorAll('.val-input').forEach(inp=>{
     config.values[inp.getAttribute('data-id')] = Number(inp.value) || 0;
   });
