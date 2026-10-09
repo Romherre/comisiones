@@ -241,6 +241,18 @@
   </div>
   <div class="ticket-tear" id="accel2Tear2"></div>
 
+  <div class="ticket" id="weightedCard" style="margin-top:14px;">
+    <div class="section-label"><span>Puntaje Ponderado</span><span id="weightedTarget"></span></div>
+    <div class="accel-row">
+      <span class="pct" id="weightedPct">0,00%</span>
+      <span class="pk" id="weightedMeta"></span>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="weightedBar" style="width:0%"></div></div>
+    <div class="sub-msg" id="weightedMsg"></div>
+    <div id="weightedBreakdown" style="margin-top:10px;"></div>
+  </div>
+  <div class="ticket-tear" id="weightedTear2"></div>
+
   <div class="ticket" style="margin-top:14px;">
     <div class="section-label"><span>Registrar venta</span><button type="button" class="reminder-chip-btn" id="toggleReminderEdit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Recordatorios</button></div>
 
@@ -362,6 +374,19 @@
       <div id="metricTierRows"></div>
     </div>
 
+    <h3>Puntaje Ponderado <button type="button" class="info-btn" data-target="infoWeighted">i</button></h3>
+    <div class="info-box" id="infoWeighted">
+      Cada categoría o combinado puede tener un <b>peso %</b> (lo definís en "Grupos y categorías" más arriba, junto a sus otros datos). El puntaje se calcula así: por cada ítem con peso, se mide <b>cuánto llevás sobre tu objetivo</b> (sin tope — si superás el 100% de ese ítem, suma más) y se multiplica por su peso. La suma de todos te da el puntaje total. Si todos los pesos suman 100%, llegar o superar tu meta (por defecto 100%, pero podés fijar otra, por ejemplo 130%) significa que fue bien repartido entre categorías, aunque te haya ido mejor en unas que en otras. Si tu negocio no usa este sistema de pesos, dejalo apagado.
+    </div>
+    <div class="toggle-row">
+      <label>Usar puntaje ponderado</label>
+      <label class="switch"><input type="checkbox" id="cfgUseWeighted"><span class="switch-track"></span></label>
+    </div>
+    <div id="weightedConfigBlock" style="display:none;">
+      <div class="cfg-grid"><label style="font-size:12.5px;">Meta de puntaje (%)</label><input type="number" step="1" id="cfgWeightedTarget" value="100"></div>
+      <p style="margin:0;font-size:11.5px;color:var(--gray);">El peso % de cada categoría o combinado se edita en "Grupos y categorías", arriba.</p>
+    </div>
+
     <button class="btn" id="cfgSave">Guardar</button>
     <button class="btn secondary" id="cfgCancel">Cancelar</button>
   </div>
@@ -386,13 +411,13 @@ const uid8 = () => Math.random().toString(36).slice(2,10);
 // ---------- Firebase ----------
 // ⚠️ Reemplazá esto por el firebaseConfig de TU PROPIO proyecto de Firebase.
 const firebaseConfig = {
-  apiKey: "AIzaSyAdA-N17yHEjln-EEJ_sVog0cDp_FPimZ4",
-  authDomain: "comisiones-8d634.firebaseapp.com",
-  projectId: "comisiones-8d634",
-  storageBucket: "comisiones-8d634.firebasestorage.app",
-  messagingSenderId: "1003808642979",
-  appId: "1:1003808642979:web:f44ac0b3c5ad6d1da3ec16",
-  measurementId: "G-YXJ0SDH182"
+  apiKey: "AIzaSyBL3lzSf0TlUtdwRj4Q0ejKLd7-CDOaaok",
+  authDomain: "comisiones2-962c1.firebaseapp.com",
+  projectId: "comisiones2-962c1",
+  storageBucket: "comisiones2-962c1.firebasestorage.app",
+  messagingSenderId: "642991651788",
+  appId: "1:642991651788:web:adf79354487e931302fb69",
+  measurementId: "G-KKX9Y18W14"
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
@@ -419,6 +444,9 @@ function defaultConfig(){
     categories: [],
     packTiers: [ {min:1, pct:0} ],
     metricTiers: [100, 100],
+    useAccel2: true,
+    useWeightedScore: false,
+    weightedScoreTarget: 100,
     reminders: [],
     periodHistory: []
   };
@@ -619,6 +647,38 @@ function accel2Pct(){
   return (config.metricTiers && config.metricTiers[n] !== undefined) ? config.metricTiers[n] : 100;
 }
 
+// ---- Puntaje ponderado ----
+function catPeso(cat){ return cat.peso || 0; }
+function comboPeso(combo){ return combo.peso || 0; }
+function weightedItems(){
+  // Un item ponderado es, por grupo, cada combinado con objetivo>0 y peso>0,
+  // más cada categoría "suelta" (no cubierta por un combinado) con objetivo>0 y peso>0.
+  const items = [];
+  (config.groups||[]).forEach(g=>{
+    const combos = (g.combos||[]).filter(c => comboTarget(c) > 0);
+    const coveredIds = new Set(combos.flatMap(c=>c.categoryIds||[]));
+    combos.forEach(combo=>{
+      const peso = comboPeso(combo);
+      if (peso > 0){
+        const actual = comboActual(combo), objetivo = comboTarget(combo);
+        items.push({ label: combo.name || 'Combinado', peso, actual, objetivo });
+      }
+    });
+    groupCategories(g.id).filter(c=>!coveredIds.has(c.id)).forEach(cat=>{
+      const peso = catPeso(cat);
+      const objetivo = catObjetivo(cat);
+      if (peso > 0 && objetivo > 0){
+        items.push({ label: cat.name, peso, actual: categoryCount(cat.id), objetivo });
+      }
+    });
+  });
+  return items;
+}
+function weightedScoreTotal(){
+  return weightedItems().reduce((s,it)=> s + (it.peso/100) * (it.objetivo>0 ? it.actual/it.objetivo : 0), 0) * 100;
+}
+function weightedScoreTargetPct(){ return (config.weightedScoreTarget!==undefined && config.weightedScoreTarget!==null) ? config.weightedScoreTarget : 100; }
+
 // ---------- Render ----------
 function render(){
   if (!config) return;
@@ -752,9 +812,40 @@ function render(){
     }).join('');
   }
 
+  const useWeighted = config.useWeightedScore === true;
+  $('weightedCard').style.display = useWeighted ? 'block' : 'none';
+  $('weightedTear2').style.display = useWeighted ? 'block' : 'none';
+  let weightedProgress = 0;
+  if (useWeighted){
+    const score = weightedScoreTotal();
+    const target = weightedScoreTargetPct();
+    weightedProgress = target>0 ? Math.min((score/target)*100,100) : 0;
+    $('weightedPct').textContent = fmtNum(score,2).replace('.',',') + '%';
+    $('weightedTarget').textContent = 'Meta ' + fmtNum(target,0) + '%';
+    $('weightedMeta').textContent = score >= target ? '¡Meta alcanzada!' : '';
+    $('weightedBar').style.width = weightedProgress.toFixed(1)+'%';
+    const missing = Math.max(target-score,0);
+    $('weightedMsg').innerHTML = score >= target
+      ? `<b>¡Llegaste a tu meta de puntaje!</b> Podés posicionarte para elegir horario.`
+      : `Te faltan <b>${fmtNum(missing,2)} puntos</b> para llegar a tu meta de ${fmtNum(target,0)}%.`;
+    const items = weightedItems();
+    $('weightedBreakdown').innerHTML = items.length === 0
+      ? '<div class="empty-hint">Todavía no asignaste pesos a ninguna categoría u objetivo combinado.</div>'
+      : items.map(it=>{
+          const pct = it.objetivo>0 ? (it.actual/it.objetivo)*100 : 0;
+          const contrib = (it.peso/100) * (it.objetivo>0 ? it.actual/it.objetivo : 0) * 100;
+          const ok = pct >= 100;
+          return `<div class="metric-sub ${ok?'done':''}">
+            <div class="metric-sub-top"><span class="nm">${it.label} <span style="color:var(--gray);">(peso ${fmtNum(it.peso,1)}%)</span></span><span class="nums">${it.actual}/${it.objetivo} · ${fmtNum(pct,0)}%</span></div>
+            <div class="metric-bar-track"><div class="metric-bar-fill ${ok?'ok':''}" style="width:${Math.min(pct,100)}%"></div></div>
+            <div class="metric-pace">Aporta <b>${fmtNum(contrib,2)} pts</b> al puntaje total</div>
+          </div>`;
+        }).join('');
+  }
+
   const packsProgress = a1.next ? Math.min((a1.packs/a1.next.min)*100,100) : 100;
   const metricsProgress = maxN>0 ? (cumplidos/maxN)*100 : 0;
-  const combinedProgress = (packsProgress+metricsProgress)/2;
+  const combinedProgress = useWeighted ? (packsProgress+metricsProgress+weightedProgress)/3 : (packsProgress+metricsProgress)/2;
   $('motivational').textContent = motivationalFor(combinedProgress);
   document.documentElement.style.setProperty('--progress', (combinedProgress/100).toFixed(2));
 
@@ -843,6 +934,17 @@ function buildReport(){
   if (config.useAccel2 !== false){
     lines.push(`🚀 ACELERADOR POR OBJETIVOS: completaste ${cumplidos} de ${groups.length} → ${fmtNum(accel2Pct(),2)}%`);
   }
+  if (config.useWeightedScore === true){
+    const score = weightedScoreTotal();
+    const target = weightedScoreTargetPct();
+    lines.push('');
+    lines.push(`⚖️ PUNTAJE PONDERADO: ${fmtNum(score,2)}% de una meta de ${fmtNum(target,0)}%` + (score>=target ? ' ✅' : ''));
+    weightedItems().forEach(it=>{
+      const pct = it.objetivo>0 ? (it.actual/it.objetivo)*100 : 0;
+      const contrib = (it.peso/100) * (it.objetivo>0 ? it.actual/it.objetivo : 0) * 100;
+      lines.push(`  • ${it.label} (peso ${fmtNum(it.peso,1)}%): ${it.actual}/${it.objetivo} = ${fmtNum(pct,0)}% → aporta ${fmtNum(contrib,2)} pts`);
+    });
+  }
   if (config.reminders && config.reminders.length){
     lines.push('');
     lines.push('📝 RECORDATORIOS');
@@ -850,7 +952,7 @@ function buildReport(){
   }
   return lines.join('\n');
 }
-const CONFIG_STRUCTURAL_FIELDS = ['period','finPeriodo','levels','activeLevel','groups','categories','packTiers','metricTiers','unitsPerPack','businessName'];
+const CONFIG_STRUCTURAL_FIELDS = ['period','finPeriodo','levels','activeLevel','groups','categories','packTiers','metricTiers','unitsPerPack','businessName','useAccel2','useWeightedScore','weightedScoreTarget'];
 
 $('exportCfgBtn').addEventListener('click', ()=>{
   const blob = new Blob([JSON.stringify(config, null, 2)], {type:'application/json'});
@@ -1015,22 +1117,31 @@ function levenshtein(a,b){
 function nameTokens(name){
   return normalizeText(name).split(/\s+/).filter(w => w.length>=3 || /^\d+$/.test(w));
 }
+function catNameCandidates(cat){
+  return [cat.name, ...(cat.aliases||[])].filter(Boolean);
+}
 function exactNameMatch(normText, cat){
-  const tokens = nameTokens(cat.name);
-  if (tokens.length===0) return null;
-  const allFound = tokens.every(t => normText.includes(t));
-  return allFound ? tokens : null;
+  let best = null;
+  catNameCandidates(cat).forEach(nm=>{
+    const tokens = nameTokens(nm);
+    if (tokens.length===0) return;
+    const allFound = tokens.every(t => normText.includes(t));
+    if (allFound && (!best || tokens.length > best.length)) best = tokens;
+  });
+  return best;
 }
 function fuzzyMatchCategory(normText){
   const words = normText.split(/\s+/).filter(w=>w.length>=3);
   let best=null, bestScore=1;
   for (const cat of (config.categories||[])){
-    const labelTokens = nameTokens(cat.name).filter(t=>!/^\d+$/.test(t));
-    for (const w of words) for (const lt of labelTokens){
-      const dist = levenshtein(w, lt);
-      const score = dist / Math.max(w.length, lt.length);
-      if (score < bestScore){ bestScore=score; best=cat; }
-    }
+    catNameCandidates(cat).forEach(nm=>{
+      const labelTokens = nameTokens(nm).filter(t=>!/^\d+$/.test(t));
+      for (const w of words) for (const lt of labelTokens){
+        const dist = levenshtein(w, lt);
+        const score = dist / Math.max(w.length, lt.length);
+        if (score < bestScore){ bestScore=score; best=cat; }
+      }
+    });
   }
   return (best && bestScore<=0.34) ? best : null;
 }
@@ -1096,6 +1207,9 @@ function openConfigModal(){
   $('cfgUnitsPerPack').value = tmp.unitsPerPack || 10;
   $('cfgUseAccel2').checked = tmp.useAccel2 !== false;
   $('accel2ConfigBlock').style.display = $('cfgUseAccel2').checked ? 'block' : 'none';
+  $('cfgUseWeighted').checked = tmp.useWeightedScore === true;
+  $('weightedConfigBlock').style.display = $('cfgUseWeighted').checked ? 'block' : 'none';
+  $('cfgWeightedTarget').value = (tmp.weightedScoreTarget!==undefined && tmp.weightedScoreTarget!==null) ? tmp.weightedScoreTarget : 100;
 
   const DAY_NAMES = [{v:1,l:'Lun'},{v:2,l:'Mar'},{v:3,l:'Mié'},{v:4,l:'Jue'},{v:5,l:'Vie'},{v:6,l:'Sáb'},{v:0,l:'Dom'}];
   const selectedDays = new Set(tmp.diasFrancos||[]);
@@ -1120,6 +1234,9 @@ document.querySelectorAll('.info-btn').forEach(btn=>{
 });
 $('cfgUseAccel2').addEventListener('change', ()=>{
   $('accel2ConfigBlock').style.display = $('cfgUseAccel2').checked ? 'block' : 'none';
+});
+$('cfgUseWeighted').addEventListener('change', ()=>{
+  $('weightedConfigBlock').style.display = $('cfgUseWeighted').checked ? 'block' : 'none';
 });
 $('cfgCancel').addEventListener('click', ()=>{ $('setupOverlay').style.display='none'; });
 
@@ -1202,13 +1319,16 @@ function renderGroups(){
         <div class="cat-row-fields">
           <div><label>Puntos</label><input type="number" step="0.01" class="cat-points" data-id="${c.id}" value="${c.points||0}"></div>
           <div><label>Objetivo${tmp.levels.length>1 ? ' · '+(activeLevelObj.name||'sin nombre') : ''}</label><input type="number" step="1" class="cat-obj" data-id="${c.id}" data-level="${activeLevelObj.id}" value="${(c.objetivos&&c.objetivos[activeLevelObj.id])||0}"></div>
+          <div><label>Peso %</label><input type="number" step="0.1" class="cat-peso" data-id="${c.id}" value="${c.peso||0}"></div>
         </div>
+        <div style="margin-top:6px;"><label style="font-size:10px;color:var(--gray);display:block;margin-bottom:2px;">Nombres alternativos (separados por coma, opcional)</label><input type="text" class="cat-aliases" data-id="${c.id}" value="${(c.aliases||[]).join(', ')}" placeholder="ej: Venta POS sin equipo"></div>
       </div>`).join('');
     const combosHtml = (g.combos||[]).map(combo=>`
       <div class="combo-box" data-combo="${combo.id}">
         <div class="combo-box-top">
           <input type="text" class="combo-name" data-id="${combo.id}" value="${combo.name||''}" placeholder="Nombre del combinado (ej: Accesorios)">
           <input type="number" step="1" class="combo-target" data-id="${combo.id}" data-level="${activeLevelObj.id}" placeholder="Objetivo" value="${(combo.target&&combo.target[activeLevelObj.id])||0}">
+          <input type="number" step="0.1" class="combo-peso" data-id="${combo.id}" placeholder="Peso %" value="${combo.peso||0}" style="width:70px;flex:none;">
           <button type="button" class="icon-btn rm-combo" data-id="${combo.id}">✕</button>
         </div>
         <div style="font-size:11px;color:var(--gray);margin-bottom:6px;">Elegí qué categorías suman a este objetivo:</div>
@@ -1248,7 +1368,7 @@ function renderGroups(){
     btn.addEventListener('click', ()=>{
       const groupId = btn.getAttribute('data-group');
       const objetivos = {}; tmp.levels.forEach(l=> objetivos[l.id]=0);
-      tmp.categories.push({id:'c_'+uid8(), name:'', groupId, points:0, objetivos});
+      tmp.categories.push({id:'c_'+uid8(), name:'', groupId, points:0, objetivos, peso:0, aliases:[]});
       renderGroups();
     });
   });
@@ -1270,6 +1390,18 @@ function renderGroups(){
       if (c){ c.objetivos = c.objetivos||{}; c.objetivos[inp.getAttribute('data-level')] = Number(inp.value)||0; }
     });
   });
+  $('groupsList').querySelectorAll('.cat-peso').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const c = tmp.categories.find(x=>x.id===inp.getAttribute('data-id'));
+      if (c) c.peso = Number(inp.value)||0;
+    });
+  });
+  $('groupsList').querySelectorAll('.cat-aliases').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const c = tmp.categories.find(x=>x.id===inp.getAttribute('data-id'));
+      if (c) c.aliases = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
+    });
+  });
   $('groupsList').querySelectorAll('.rm-cat').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       tmp.categories = tmp.categories.filter(c=>c.id!==btn.getAttribute('data-id'));
@@ -1284,7 +1416,7 @@ function renderGroups(){
       if (!g) return;
       g.combos = g.combos || [];
       const target = {}; tmp.levels.forEach(l=> target[l.id]=0);
-      g.combos.push({id:'combo_'+uid8(), name:'', categoryIds:[], target});
+      g.combos.push({id:'combo_'+uid8(), name:'', categoryIds:[], target, peso:0});
       renderGroups();
     });
   });
@@ -1301,6 +1433,14 @@ function renderGroups(){
       for (const g of tmp.groups){
         const combo = (g.combos||[]).find(c=>c.id===inp.getAttribute('data-id'));
         if (combo){ combo.target = combo.target||{}; combo.target[inp.getAttribute('data-level')] = Number(inp.value)||0; break; }
+      }
+    });
+  });
+  $('groupsList').querySelectorAll('.combo-peso').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      for (const g of tmp.groups){
+        const combo = (g.combos||[]).find(c=>c.id===inp.getAttribute('data-id'));
+        if (combo){ combo.peso = Number(inp.value)||0; break; }
       }
     });
   });
@@ -1388,6 +1528,8 @@ $('cfgSave').addEventListener('click', async ()=>{
   tmp.diasFrancos = Array.from(document.querySelectorAll('#francosChecks .day-chip.active')).map(c=>Number(c.getAttribute('data-day')));
   tmp.unitsPerPack = Number($('cfgUnitsPerPack').value) || 10;
   tmp.useAccel2 = $('cfgUseAccel2').checked;
+  tmp.useWeightedScore = $('cfgUseWeighted').checked;
+  tmp.weightedScoreTarget = Number($('cfgWeightedTarget').value) || 100;
 
   // limpiar categorías sin nombre
   tmp.categories = (tmp.categories||[]).filter(c => c.name && c.name.trim());
